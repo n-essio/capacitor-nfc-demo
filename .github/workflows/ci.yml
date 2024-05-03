@@ -14,9 +14,6 @@ on:
 env:
   NODE_VERSION: 20
   JAVA_VERSION: 17
-  VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
 jobs:
   build:
@@ -29,8 +26,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-      - name: Set npm access token for GitHub registry
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
       - name: Install Node.js dependencies
         run: npm ci
       - name: Build web assets
@@ -72,100 +67,3 @@ jobs:
       - name: Build with Gradle
         working-directory: android
         run: ./gradlew build
-  ios:
-    name: Build iOS platform
-    runs-on: macos-14
-    needs: [build]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: www
-          path: www
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: Set npm access token for GitHub registry
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
-      - name: Install Node.js dependencies
-        run: npm ci
-      - name: Copy web assets to native platform
-        run: npx ionic capacitor copy ios --no-build
-      - name: Update native platform
-        run: npx ionic capacitor update ios
-      - name: Build and archive with xcodebuild
-        working-directory: ios
-        run: xcodebuild
-          -workspace App/App.xcworkspace
-          -scheme App
-          -archivePath App/build/App.xarchive
-          clean build archive
-          CODE_SIGN_IDENTITY=""
-          CODE_SIGNING_REQUIRED=NO
-          CODE_SIGNING_ALLOWED="NO"
-          CODE_SIGN_ENTITLEMENTS=""
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: Set npm access token for GitHub registry
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
-      - name: Install Node.js dependencies
-        run: npm ci
-      - name: Run ESLint and Prettier
-        run: npm run lint
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    if: false
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Node.js ${{ env.NODE_VERSION }}
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-      - name: Set npm access token for GitHub registry
-        run: echo "//npm.pkg.github.com/:_authToken=${{ secrets.NPM_TOKEN }}" >> .npmrc
-      - name: Install dependencies
-        run: npm ci
-      - name: Run unit tests
-        run: npm run test:ci
-  deploy:
-    name: Deploy to Cloudflare Pages
-    runs-on: ubuntu-latest
-    needs: [build]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: www
-          path: www
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
-        id: cloudflare-deployment
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: ${{ vars.CLOUDFLARE_PROJECT_NAME }}
-          directory: www
-      - name: Comment the preview url
-        if: github.event_name == 'pull_request'
-        uses: peter-evans/create-or-update-comment@v3
-        with:
-          issue-number: ${{ github.event.number }}
-          body: |
-            Deploy preview available at: ${{ steps.cloudflare-deployment.outputs.url }}
-
-            Built with commit ${{ github.event.pull_request.head.sha }}.
